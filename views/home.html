@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ホーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 p-4">
+
+<div class="max-w-md mx-auto space-y-6">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-xl font-bold">マイページ</h1>
+        <div class="text-sm bg-white px-3 py-1 rounded-full shadow-sm">
+            {{.User.DisplayName}} さん
+        </div>
+    </div>
+
+    <div>
+        <h2 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">所属店舗</h2>
+        <div class="space-y-3">
+            {{range .UserGroups}}
+            <a href="/groups/{{.ID}}?user_id={{$.CurrentUserID}}" class="block bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:bg-blue-50 transition relative">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <div class="font-bold text-lg text-gray-800">{{.Name}}</div>
+
+                            {{if eq .Role "ADMIN"}}
+                            <button type="button"
+                                    onclick="copyInviteCode(event, '{{.InvitationCode}}')"
+                                    class="shrink-0 text-[10px] font-bold px-2 py-1 rounded-full bg-gray-100 text-gray-700 border hover:bg-gray-200 active:scale-95 transition"
+                                    aria-label="招待コードをコピー">
+                                <i class="fa-regular fa-copy mr-1"></i>招待: {{.InvitationCode}}
+                            </button>
+                            {{end}}
+                        </div>
+
+                        <div class="text-xs text-blue-500 font-bold mt-1">{{.Role}}</div>
+                    </div>
+
+                    <i class="fa-solid fa-chevron-right text-gray-300"></i>
+                </div>
+            </a>
+            {{else}}
+            <div class="text-center py-8 bg-white rounded-xl border border-dashed border-gray-300 text-gray-400">
+                所属しているグループはありません
+            </div>
+            {{end}}
+        </div>
+    </div>
+
+    <hr class="border-gray-200">
+
+    <div class="bg-white rounded-xl p-5 shadow-sm space-y-4">
+        <div>
+            <h3 class="font-bold text-gray-700 text-sm mb-2"><i class="fa-solid fa-store text-blue-500 mr-1"></i> 新しくお店を作る</h3>
+            <div class="flex gap-2">
+                <input type="text" id="newGroupName" placeholder="店舗名" class="flex-1 bg-gray-50 border rounded-lg p-2 text-sm">
+                <button onclick="createGroup()" class="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-sm shadow">作成</button>
+            </div>
+        </div>
+
+        <div class="border-t border-gray-100 my-2"></div>
+
+        <div>
+            <h3 class="font-bold text-gray-700 text-sm mb-2"><i class="fa-solid fa-ticket text-orange-500 mr-1"></i> 招待コードで参加</h3>
+            <div class="flex gap-2">
+                <input type="text" id="inviteCode" placeholder="コード入力" class="flex-1 bg-gray-50 border rounded-lg p-2 text-sm text-center uppercase">
+                <button onclick="joinGroup()" class="bg-orange-500 text-white font-bold px-4 py-2 rounded-lg text-sm shadow">参加</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast"
+         class="fixed left-1/2 -translate-x-1/2 bottom-6 bg-gray-900 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg hidden opacity-0 transition">
+    </div>
+</div>
+
+<script>
+    const USER_ID = "{{.CurrentUserID}}"; // 表示/遷移用（認証には使わない）
+
+    const LIFF_ID = "2008868081-YyIMA5lT";
+
+    // LIFF から取得した id_token を保持
+    let ID_TOKEN = "";
+
+    async function initAuth() {
+        try {
+            await liff.init({ liffId: LIFF_ID });
+
+            if (!liff.isLoggedIn()) {
+                liff.login();
+                return;
+            }
+
+            ID_TOKEN = liff.getIDToken();
+            if (!ID_TOKEN) {
+                alert("id_token を取得できませんでした（LIFFの scope に openid が必要です）");
+            }
+        } catch (e) {
+            console.error(e);
+            alert("LIFF 初期化に失敗しました");
+        }
+    }
+
+    function requireIDToken() {
+        if (!ID_TOKEN) {
+            alert("認証情報がありません。LINE内から開き直してください。");
+            throw new Error("missing id_token");
+        }
+    }
+
+    // ページロードで認証初期化
+    window.addEventListener('load', initAuth);
+
+    async function createGroup() {
+        const name = document.getElementById('newGroupName').value;
+        if(!name) return;
+        requireIDToken();
+        try {
+            const res = await fetch('/api/groups', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                },
+                body: JSON.stringify({ group_name: name })
+            });
+            if (res.ok) location.reload();
+        } catch(e) { console.error(e); }
+    }
+
+    async function joinGroup() {
+        const code = document.getElementById('inviteCode').value;
+        if(!code) return;
+        requireIDToken();
+        try {
+            const res = await fetch('/api/groups/join', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                },
+                body: JSON.stringify({ invitation_code: code })
+            });
+            if(res.ok) {
+                alert("参加しました！");
+                location.reload();
+            } else {
+                alert("コードが間違っているか、既に参加済みです");
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    // トースト表示
+    function showToast(message) {
+        const toast = document.getElementById('toast');
+        if (!toast) return;
+
+        toast.textContent = message;
+        toast.classList.remove('hidden');
+        // hidden を外した直後に opacity を上げると効かないことがあるので1tick遅らせる
+        requestAnimationFrame(() => toast.classList.add('opacity-100'));
+
+        clearTimeout(window.__toastTimer);
+        window.__toastTimer = setTimeout(() => {
+            toast.classList.remove('opacity-100');
+            // フェードアウト後に非表示
+            setTimeout(() => toast.classList.add('hidden'), 250);
+        }, 1600);
+    }
+
+    // 招待コードをコピー（Clipboard API → フォールバック）
+    async function copyInviteCode(e, code) {
+        // <a> の遷移を止める
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(code);
+            } else {
+                // フォールバック: hidden textarea + execCommand
+                const ta = document.createElement('textarea');
+                ta.value = code;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.top = '-9999px';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                ta.setSelectionRange(0, ta.value.length);
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            showToast(`招待コードをコピーしました: ${code}`);
+        } catch (e) {
+            console.error(e);
+            alert("コピーに失敗しました。手動でコピーしてください: " + code);
+        }
+    }
+</script>
+</body>
+</html>

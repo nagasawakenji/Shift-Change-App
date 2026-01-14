@@ -1,0 +1,2 @@
+ALTER TABLE shift_trades
+    ADD COLUMN details TEXT NOT NULL DEFAULT '';

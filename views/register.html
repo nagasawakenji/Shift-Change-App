@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>アカウント登録</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+<div id="loading" class="text-center text-gray-500">
+    <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i>
+    <p class="text-sm font-bold">LINE情報を読み込んでいます...</p>
+</div>
+
+<div id="mainContent" class="hidden bg-white rounded-2xl shadow-xl p-8 w-full max-w-sm text-center">
+
+    <div class="mb-6">
+        <h1 class="text-xl font-bold text-gray-800">ようこそ！</h1>
+        <p class="text-gray-400 text-xs mt-1">以下のLINEアカウントで登録します</p>
+    </div>
+
+    <div class="flex flex-col items-center mb-8 bg-gray-50 p-6 rounded-xl border border-gray-100">
+        <img id="profileImage" src="" alt="" class="w-20 h-20 rounded-full border-4 border-white shadow-sm mb-3 object-cover bg-gray-200">
+        <h2 id="displayNameText" class="text-lg font-bold text-gray-800">...</h2>
+        <p class="text-xs text-gray-400 mt-1">として登録</p>
+    </div>
+
+    <button id="registerBtn" onclick="registerUser()"
+            class="w-full bg-[#06C755] hover:bg-[#05b34c] text-white font-bold py-3.5 rounded-xl shadow-lg transition transform active:scale-95 flex items-center justify-center">
+        <i class="fa-brands fa-line mr-2 text-xl"></i> アカウントを作成する
+    </button>
+
+    <p class="text-xs text-gray-300 mt-6">
+        登録することで利用規約に同意したものとみなします
+    </p>
+</div>
+
+<script>
+    const LIFF_ID = "2008868081-YyIMA5lT";
+
+    // LINEから取得したデータ
+    let lineUserId = "";
+    let displayName = "";
+    let pictureUrl = "";
+
+    // ★追加：IDトークン
+    let idToken = "";
+
+    // 1. LIFF初期化
+    (async () => {
+        try {
+            await liff.init({
+                liffId: LIFF_ID,
+                withLoginOnExternalBrowser: true, // 外部ブラウザでもログイン誘導
+            });
+
+            // ログインしていなければ、同じURLへ戻す形でログイン
+            if (!liff.isLoggedIn()) {
+                liff.login({ redirectUri: window.location.href });
+                return;
+            }
+
+            // ★追加：IDトークン取得（openid scope が必須）
+            idToken = liff.getIDToken() || "";
+            if (!idToken) {
+                console.error("ID token is empty. Check LIFF scope includes 'openid'.");
+                alert("IDトークンが取得できませんでした。LIFFのscopeに openid を追加してください。");
+                return;
+            }
+
+            // プロフィール取得（表示用）
+            const profile = await liff.getProfile();
+            lineUserId = profile.userId;
+            displayName = profile.displayName;
+            pictureUrl = profile.pictureUrl;
+
+            // 画面に反映
+            document.getElementById('displayNameText').textContent = displayName;
+
+            const imgEl = document.getElementById('profileImage');
+            imgEl.src = pictureUrl
+                ? pictureUrl
+                : "https://placehold.co/400x400/e2e8f0/a0aec0?text=No+Image";
+
+            // ローディングを消してメイン画面を表示
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('mainContent').classList.remove('hidden');
+
+        } catch (err) {
+            console.error('LIFF Init/Profile Error:', err);
+            const code = err && err.code ? err.code : "";
+            document.getElementById('loading').innerHTML =
+                `<p class="text-red-500">エラーが発生しました<br>${code}</p>`;
+        }
+    })();
+
+    // 2. 登録処理（GoのAPIを叩く）
+    async function registerUser() {
+        const btn = document.getElementById('registerBtn');
+
+        // 二重送信防止
+        if (btn.disabled) return;
+
+        // まだ初期化できてない場合
+        if (!idToken || !displayName) {
+            alert("LINE認証情報の取得中です。少し待ってからもう一度お試しください。");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i> 作成中...';
+
+        try {
+            const res = await fetch('/api/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${idToken}`
+                },
+                body: JSON.stringify({
+                    name: displayName
+                })
+            });
+
+            // エラー時にJSONじゃないレスポンスでも落ちないようにする
+            const text = await res.text();
+
+            if (res.ok) {
+                const user = JSON.parse(text);
+                // 成功したらホームへ（※今後はCookieセッションに寄せるのが安全）
+                window.location.href = `/?user_id=${user.id}`;
+                return;
+            }
+
+            alert(`エラー: status=${res.status}\n${text}`);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-brands fa-line mr-2 text-xl"></i> アカウントを作成する';
+
+        } catch (e) {
+            console.error(e);
+            alert("通信エラーが発生しました: " + e);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-brands fa-line mr-2 text-xl"></i> アカウントを作成する';
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1 @@
+ALTER TABLE shift_trades ADD COLUMN is_paid BOOLEAN DEFAULT FALSE;

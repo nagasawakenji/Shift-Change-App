@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>シフトボード</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* iOSっぽいフォント設定 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        /* モーダル表示時の背景固定 */
+        body.modal-open { overflow: hidden; }
+    </style>
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+</head>
+<body class="bg-gray-50 text-gray-800 pb-20">
+
+<header class="bg-white shadow-sm sticky top-0 z-10">
+    <div class="max-w-md mx-auto px-4 py-3 flex justify-between items-center">
+        <h1 class="text-lg font-bold text-gray-800">
+            <i class="fa-solid fa-store text-blue-500 mr-2"></i>{{.Group.Name}}
+        </h1>
+        <div class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+            <i class="fa-solid fa-user-tag mr-1"></i>{{.User.DisplayName}}
+        </div>
+    </div>
+</header>
+
+<main class="max-w-md mx-auto p-4 space-y-4">
+
+    <div class="flex justify-between items-end">
+        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">募集中 ({{len .Trades}}件)</h2>
+    </div>
+
+    <div id="trade-list" class="space-y-3">
+        {{range .Trades}}
+        <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+
+            <div class="flex justify-between items-start pl-2">
+                <div>
+                    <div class="text-xl font-bold text-gray-800 flex items-center">
+                        <span class="shift-time">{{ .ShiftStartAt.Format "2006-01-02T15:04:05Z07:00" }}</span>
+                        <span class="mx-1 text-gray-400 text-sm">~</span>
+                        <span class="shift-time text-base text-gray-600">{{ .ShiftEndAt.Format "2006-01-02T15:04:05Z07:00" }}</span>
+                    </div>
+                    <div class="flex items-center mt-2">
+                        <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500 mr-2">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <span class="text-sm text-gray-600 font-medium">{{.RequesterName}}</span>
+                    </div>
+                    <div class="mt-2 text-sm text-orange-500 font-bold">
+                        <i class="fa-solid fa-gift mr-1"></i> {{.BountyDescription}}
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-2 items-end">
+                    <a href="/groups/{{$.GroupID}}/trades/{{.ID}}?user_id={{$.CurrentUserID}}" class="bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold py-2 px-3 rounded-lg shadow-sm transition">
+                        <i class="fa-solid fa-circle-info mr-1"></i> 詳細
+                    </a>
+
+                    <button onclick="acceptTrade('{{.ID}}')" class="bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold py-2 px-4 rounded-lg shadow-md transition transform active:scale-95">
+                        代わる
+                    </button>
+                </div>
+            </div>
+        </div>
+        {{else}}
+        <div class="text-center py-10 text-gray-400">
+            <i class="fa-regular fa-calendar-check text-4xl mb-3"></i>
+            <p>現在募集中のシフトはありません</p>
+        </div>
+        {{end}}
+    </div>
+
+    <div class="flex justify-between items-end mb-3">
+        <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider">
+            <i class="fa-solid fa-clock-rotate-left mr-1"></i> 自分の履歴
+        </h2>
+    </div>
+
+    <div class="space-y-3 pb-20">
+        {{range .MyTrades}}
+        <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <div class="flex justify-between items-center mb-2">
+                    <span class='text-xs font-bold px-2 py-1 rounded
+                        {{if eq .Status "OPEN"}}bg-green-100 text-green-800{{else}}bg-gray-200 text-gray-600{{end}}'>
+                {{.Status}}
+                </span>
+                <span class="text-xs text-gray-400 shift-time">{{ .ShiftStartAt.Format "2006-01-02T15:04:05Z07:00" }}</span>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <div>
+                    <div class="text-sm font-bold text-gray-800">{{.BountyDescription}}</div>
+
+                    {{if .IsPaid}}
+                    <div class="text-green-600 text-xs font-bold mt-1">
+                        <i class="fa-solid fa-check-circle"></i> 支払い完了
+                    </div>
+                    {{else}}
+                    <div class="text-red-500 text-xs font-bold mt-1">
+                        <i class="fa-solid fa-circle-exclamation"></i> 未払い
+                    </div>
+                    {{end}}
+                </div>
+
+                <div class="flex gap-2 items-center">
+                    {{/* OPEN の募集は取り消し（削除）できる */}}
+                    {{if eq .Status "OPEN"}}
+                    <button onclick="deleteTrade('{{.ID}}', '{{.RequesterID}}')"
+                            class="bg-red-500 text-white text-xs font-bold py-2 px-3 rounded shadow hover:bg-red-600">
+                        <i class="fa-solid fa-trash"></i> 削除
+                    </button>
+                    {{end}}
+
+                    {{/* FILLED で未払いかつリクエスター本人のみ支払いボタン */}}
+                    {{if and (not .IsPaid) (eq .Status "FILLED") (eq (printf "%v" .RequesterID) $.CurrentUserID)}}
+                    <button onclick="markAsPaid('{{.ID}}', '{{.RequesterID}}')"
+                            class="bg-orange-500 text-white text-xs font-bold py-2 px-3 rounded shadow hover:bg-orange-600">
+                        <i class="fa-solid fa-yen-sign"></i> 支払い完了
+                    </button>
+                    {{end}}
+                </div>
+            </div>
+        </div>
+        {{else}}
+        <div class="text-center text-xs text-gray-400">履歴はありません</div>
+        {{end}}
+    </div>
+
+
+</main>
+
+<button onclick="openModal()" class="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center text-2xl hover:bg-blue-700 transition transform active:scale-90 z-20">
+    <i class="fa-solid fa-plus"></i>
+</button>
+
+<div id="post-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl transform transition-all scale-100">
+        <h3 class="text-lg font-bold mb-4 flex items-center">
+            <i class="fa-solid fa-bullhorn text-blue-500 mr-2"></i> シフト募集を作成
+        </h3>
+
+        <form id="create-trade-form" class="space-y-4">
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">開始日時</label>
+                <input type="datetime-local" id="start_at" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">終了日時</label>
+                <input type="datetime-local" id="end_at" required class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">お礼・コメント</label>
+                <input type="text" id="bounty" placeholder="例: スタバ奢ります！" class="w-full bg-gray-50 border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500">
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="closeModal()" class="flex-1 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">
+                    キャンセル
+                </button>
+                <button type="submit" class="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md">
+                    募集する
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const GROUP_ID = "{{.GroupID}}";
+    const USER_ID = "{{.CurrentUserID}}";
+    const LIFF_ID = "2008868081-YyIMA5lT";
+    let ID_TOKEN = "";
+
+    async function initAuth() {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+            liff.login();
+            return;
+        }
+
+        ID_TOKEN = liff.getIDToken();
+        if (!ID_TOKEN) {
+            alert("id_token を取得できませんでした（LIFFの scope に openid が必要です）");
+        }
+    }
+
+    // ページロードで認証初期化
+    window.addEventListener("load", initAuth);
+
+    // 日付フォーマット調整
+    // Go/DB から来る文字列は RFC3339 形式なのでそのまま Date パースする
+    function parseToDate(value) {
+        if (!value) return null;
+        const s = String(value).trim();
+        const d = new Date(s); // RFC3339 をそのままパース
+        if (Number.isNaN(d.getTime())) return null;
+        return d;
+    }
+
+    const fmtJST = new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    });
+
+    document.querySelectorAll('.shift-time').forEach(el => {
+        const raw = (el.textContent || '').trim();
+        const d = parseToDate(raw);
+        if (!d) return;
+        el.textContent = fmtJST.format(d);
+    });
+
+    // モーダル操作
+    function openModal() {
+        document.getElementById('post-modal').classList.remove('hidden');
+    }
+    function closeModal() {
+        document.getElementById('post-modal').classList.add('hidden');
+    }
+    function requireIDToken() {
+        if (!ID_TOKEN) {
+            alert("認証情報がありません。LINE内から開き直してください。");
+            throw new Error("missing id_token");
+        }
+    }
+
+    // シフト応募 (PUT)
+    async function acceptTrade(tradeID) {
+        if(!confirm("本当にこのシフトを代わりますか？")) return;
+
+        try {
+            requireIDToken();
+
+            const res = await fetch(`/api/groups/${GROUP_ID}/trades/${tradeID}/accept`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                },
+                body: JSON.stringify({})
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                alert("エラー: " + (err.error || "失敗しました"));
+                return;
+            }
+            alert("シフト成立！ありがとうございます🎉");
+            location.reload(); // 画面更新
+
+        } catch (e) {
+            alert("通信エラーが発生しました");
+        }
+    }
+
+    // シフト作成 (POST)
+    document.getElementById('create-trade-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        // ISO文字列への変換
+        const startAt = new Date(document.getElementById('start_at').value).toISOString();
+        const endAt = new Date(document.getElementById('end_at').value).toISOString();
+        const bounty = document.getElementById('bounty').value;
+
+        try {
+            requireIDToken();
+
+            const res = await fetch(`/api/groups/${GROUP_ID}/trades`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                },
+                body: JSON.stringify({
+                    start_at: startAt,
+                    end_at: endAt,
+                    bounty: bounty
+                })
+            });
+
+            if (!res.ok) {
+                const err = await res.json();
+                alert("エラー: " + (err.error || "作成できませんでした"));
+                return;
+            }
+
+            alert("募集を開始しました！");
+            location.reload();
+
+        } catch (e) {
+            alert("通信エラーが発生しました");
+            console.error(e);
+        }
+    });
+
+    // 支払い完了処理 (PUT) → body に id_token
+    async function markAsPaid(tradeID, requesterID) {
+        // UI上の簡易チェックは残してOK（でも本当の認可はサーバ側がやる）
+        if (requesterID !== USER_ID) {
+            return;
+        }
+        if(!confirm("謝礼の支払いを完了済みにしますか？")) return;
+
+        try {
+            requireIDToken();
+
+            const res = await fetch(`/api/trades/${tradeID}/paid`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                },
+                body: JSON.stringify({})
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert("更新に失敗しました: " + (err.error || ""));
+                return;
+            }
+
+            alert("支払いを記録しました！");
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            alert("通信エラー");
+        }
+    }
+
+    // シフト募集の削除 (DELETE)
+    async function deleteTrade(tradeID, requesterID) {
+        // UI上の簡易チェック（最終的な認可はサーバ側）
+        if (requesterID !== USER_ID) {
+            return;
+        }
+
+        if (!confirm("この募集を削除しますか？")) return;
+
+        try {
+            requireIDToken();
+
+            const url = `/api/groups/${GROUP_ID}/trades/${tradeID}`;
+            const res = await fetch(url, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                }
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert("削除に失敗しました: " + (err.error || ""));
+                return;
+            }
+
+            alert("削除しました");
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            alert("通信エラー");
+        }
+    }
+</script>
+</body>
+</html>

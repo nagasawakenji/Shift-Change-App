@@ -1,0 +1,49 @@
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Go build outputs =====
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# ===== Go workspace / modules =====
+# (基本は commit してOK: go.mod / go.sum は除外しない)
+vendor/
+
+# ===== Air (live reload) =====
+tmp/
+.air.toml.local
+air.toml.local
+
+# ===== Logs =====
+*.log
+
+# ===== Env / Secrets =====
+.env
+.env.*
+!.env.example
+
+# ===== IDE =====
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# ===== Coverage =====
+coverage/
+*.cover
+cover.out
+
+# ===== Local DB / Runtime =====
+*.sqlite
+*.db
+
+# ===== Misc =====
+*.pem
+*.key
