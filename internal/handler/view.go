@@ -2,13 +2,17 @@ package handler
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
 
 func (h *Handler) ShowHomeEntry(c echo.Context) error {
-	return c.Render(http.StatusOK, "home_entry.html", nil)
+	data := map[string]interface{}{
+		"LiffID": os.Getenv("LIFF_ID"),
+	}
+	return c.Render(http.StatusOK, "home_entry.html", data)
 }
 
 // ホーム画面 (グループ選択)
@@ -39,6 +43,7 @@ func (h *Handler) ShowHome(c echo.Context) error {
 		"User":          user,
 		"CurrentUserID": userIDStr,
 		"UserGroups":    groups,
+		"LiffID":        os.Getenv("LIFF_ID"),
 	}
 	return c.Render(http.StatusOK, "home.html", data) // home.html を表示
 }
@@ -84,6 +89,7 @@ func (h *Handler) ShowGroupBoard(c echo.Context) error {
 		"GroupID":       groupIDStr,
 		"Trades":        trades,
 		"MyTrades":      myTrades,
+		"LiffID":        os.Getenv("LIFF_ID"),
 	}
 
 	return c.Render(http.StatusOK, "board.html", data) // board.html を表示

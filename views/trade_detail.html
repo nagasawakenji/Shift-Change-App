@@ -44,9 +44,9 @@
     <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
         <div class="text-sm font-bold mb-2">シフト</div>
         <div class="text-lg font-bold">
-            <span class="shift-time">{{.Trade.ShiftStartAt}}</span>
+            <span class="shift-time">{{ .Trade.ShiftStartAt.Format "2006-01-02T15:04:05Z07:00" }}</span>
             <span class="text-gray-400 mx-1">~</span>
-            <span class="shift-time">{{.Trade.ShiftEndAt}}</span>
+            <span class="shift-time">{{ .Trade.ShiftEndAt.Format "2006-01-02T15:04:05Z07:00" }}</span>
         </div>
         <div class="mt-2 text-sm text-orange-500 font-bold">
             🎁 {{.Trade.BountyDescription}}
@@ -57,7 +57,7 @@
 <script>
     const GROUP_ID = "{{.GroupID}}";
     const TRADE_ID = "{{.Trade.ID}}";
-    const LIFF_ID = "2008868081-YyIMA5lT";
+    const LIFF_ID = "{{.LiffID}}";
     let ID_TOKEN = "";
     const CAN_EDIT = "{{.CanEditDetails}}" === "true";
 
@@ -66,7 +66,37 @@
         if (!liff.isLoggedIn()) { liff.login(); return; }
         ID_TOKEN = liff.getIDToken();
     }
+
+    // 日付フォーマット調整
+    // Go/DB から来る文字列は RFC3339 形式なのでそのまま Date パースする
+    function parseToDate(value) {
+        if (!value) return null;
+        const s = String(value).trim();
+        const d = new Date(s); // RFC3339 をそのままパース
+        if (Number.isNaN(d.getTime())) return null;
+        return d;
+    }
+
+    const fmtJST = new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+    });
+
+    function applyJSTShiftTimes() {
+        document.querySelectorAll('.shift-time').forEach(el => {
+            const raw = (el.textContent || '').trim();
+            const d = parseToDate(raw);
+            if (!d) return;
+            el.textContent = fmtJST.format(d);
+        });
+    }
+
     window.addEventListener("load", () => {
+        applyJSTShiftTimes();
         if (CAN_EDIT) initAuth();
     });
 
