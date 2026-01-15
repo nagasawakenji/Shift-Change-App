@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"os"
 	"shift-change-app/internal/database"
 
 	"github.com/google/uuid"
@@ -59,6 +60,7 @@ func (h *Handler) ShowTradeDetail(c echo.Context) error {
 		"CurrentUserID":  userIDStr,
 		"GroupID":        groupID.String(),
 		"CanEditDetails": canEdit,
+		"LiffID":         os.Getenv("LIFF_ID"),
 	}
 	return c.Render(http.StatusOK, "trade_detail.html", data)
 }
