@@ -33,8 +33,27 @@ func AuthMiddleware() echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			authz := c.Request().Header.Get("Authorization")
+
+			if strings.TrimSpace(os.Getenv("AUTH_DEBUG")) == "1" {
+				c.Logger().Infof("[AUTH_DEBUG] path=%s method=%s host=%s", c.Path(), c.Request().Method, c.Request().Host)
+				// 値をそのまま出すのは危険なので prefix のみ
+				if authz == "" {
+					c.Logger().Warn("[AUTH_DEBUG] Authorization header is EMPTY")
+				} else {
+					// 先頭だけ表示（トークン漏洩防止）
+					prefix := authz
+					if len(prefix) > 32 {
+						prefix = prefix[:32]
+					}
+					c.Logger().Infof("[AUTH_DEBUG] Authorization(head)=%q (len=%d)", prefix, len(authz))
+				}
+			}
+
 			// Bearer でない場合は弾く
 			if !strings.HasPrefix(authz, "Bearer ") {
+				if strings.TrimSpace(os.Getenv("AUTH_DEBUG")) == "1" {
+					c.Logger().Warn("[AUTH_DEBUG] missing or invalid Authorization: Bearer prefix")
+				}
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing Authorization: Bearer token"})
 			}
 
@@ -79,8 +98,17 @@ func AuthMiddleware() echo.MiddlewareFunc {
 
 			// LINE verify API を用いた検証
 			sub, err := verifyLineIDToken(bearer)
-			if strings.TrimSpace(os.Getenv("AUTH_DEBUG")) == "1" && err == nil {
-				c.Logger().Infof("[AUTH_DEBUG] line verify success (subLen=%d)", len(sub))
+			if strings.TrimSpace(os.Getenv("AUTH_DEBUG")) == "1" {
+				if err == nil {
+					c.Logger().Infof("[AUTH_DEBUG] line verify success (subLen=%d)", len(sub))
+				} else {
+					// verify API 失敗の原因をログに出す（トークン全文は出さない）
+					head := bearer
+					if len(head) > 16 {
+						head = head[:16]
+					}
+					c.Logger().Errorf("[AUTH_DEBUG] line verify FAILED: %v (bearerLen=%d bearerHead=%q)", err, len(bearer), head)
+				}
 			}
 			if err != nil {
 				return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid id_token"})
