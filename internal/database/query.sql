@@ -9,7 +9,26 @@ VALUES ($1, $2, $3)
 -- LINE IDでユーザー取得
 -- name: GetUserByLineID :one
 SELECT * FROM users
-WHERE line_user_id = $1 LIMIT 1;
+WHERE line_user_id = $1
+  AND deleted_at IS NULL
+    LIMIT 1;
+
+-- id指定でユーザー論理削除
+-- name: WithdrawUser :exec
+UPDATE users
+SET line_user_id = $2,
+    display_name = $3,
+    deleted_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL;
+
+-- 退会ユーザーが作成した「募集中(OPEN)」の募集を全てCLOSEDにする
+-- name: CloseOpenShiftTradesByRequester :execrows
+UPDATE shift_trades
+SET status = 'CLOSED',
+    updated_at = NOW()
+WHERE requester_id = $1
+  AND status = 'OPEN';
 
 -- グループ作成
 -- name: CreateJobGroup :one

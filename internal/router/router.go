@@ -28,6 +28,7 @@ func SetupRoutes(e *echo.Echo, h *handler.Handler) {
 		authed.PUT("/groups/:group_id/trades/:trade_id/accept", h.AcceptTrade)
 		authed.PUT("/trades/:trade_id/paid", h.MarkPaid)
 		authed.PUT("/groups/:group_id/trades/:trade_id/details", h.UpdateTradeDetails)
+		authed.DELETE("/me", h.WithdrawMe)
 	}
 
 	// 画面表示 (HTML)

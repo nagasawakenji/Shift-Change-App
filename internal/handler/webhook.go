@@ -37,14 +37,14 @@ func (h *Handler) Webhook(c echo.Context) error {
 		}
 
 		// 既に登録済みかを判定（
-		_, uerr := h.queries.GetUserByLineID(req.Context(), userID)
+		_, user := h.queries.GetUserByLineID(req.Context(), userID)
 		registered := true
-		if uerr != nil {
-			if uerr == sql.ErrNoRows {
+		if user != nil {
+			if user == sql.ErrNoRows {
 				registered = false
 			} else {
 				// DBエラー等。とりあえずログだけ出して次へ
-				c.Logger().Errorf("GetUserByLineID error: %v", uerr)
+				c.Logger().Errorf("GetUserByLineID error: %v", user)
 				continue
 			}
 		}

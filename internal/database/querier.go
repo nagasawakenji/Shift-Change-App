@@ -13,6 +13,8 @@ import (
 type Querier interface {
 	// シフト交代リクエストの応募
 	AcceptShiftTrade(ctx context.Context, arg AcceptShiftTradeParams) (ShiftTrade, error)
+	// 退会ユーザーが作成した「募集中(OPEN)」の募集を全てCLOSEDにする
+	CloseOpenShiftTradesByRequester(ctx context.Context, requesterID uuid.UUID) (int64, error)
 	// グループ参加
 	CreateGroupMember(ctx context.Context, arg CreateGroupMemberParams) (GroupMember, error)
 	// グループ作成
@@ -52,6 +54,8 @@ type Querier interface {
 	MarkTradeAsPaid(ctx context.Context, arg MarkTradeAsPaidParams) (ShiftTrade, error)
 	// シフト交代リクエストの詳細を編集
 	UpdateTradeDetails(ctx context.Context, arg UpdateTradeDetailsParams) (ShiftTrade, error)
+	// id指定でユーザー論理削除
+	WithdrawUser(ctx context.Context, arg WithdrawUserParams) error
 }
 
 var _ Querier = (*Queries)(nil)

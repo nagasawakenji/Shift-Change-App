@@ -58,6 +58,23 @@ func (q *Queries) AcceptShiftTrade(ctx context.Context, arg AcceptShiftTradePara
 	return i, err
 }
 
+const closeOpenShiftTradesByRequester = `-- name: CloseOpenShiftTradesByRequester :execrows
+UPDATE shift_trades
+SET status = 'CLOSED',
+    updated_at = NOW()
+WHERE requester_id = $1
+  AND status = 'OPEN'
+`
+
+// 退会ユーザーが作成した「募集中(OPEN)」の募集を全てCLOSEDにする
+func (q *Queries) CloseOpenShiftTradesByRequester(ctx context.Context, requesterID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, closeOpenShiftTradesByRequester, requesterID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createGroupMember = `-- name: CreateGroupMember :one
 INSERT INTO group_members (user_id, group_id, role)
 VALUES ($1, $2, $3)
@@ -158,7 +175,7 @@ const createUser = `-- name: CreateUser :one
 
 INSERT INTO users (line_user_id, display_name, profile_image_url)
 VALUES ($1, $2, $3)
-    RETURNING id, line_user_id, display_name, profile_image_url, created_at, updated_at
+    RETURNING id, line_user_id, display_name, profile_image_url, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
@@ -179,6 +196,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.ProfileImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -336,7 +354,7 @@ func (q *Queries) GetTradeByID(ctx context.Context, id uuid.UUID) (ShiftTrade, e
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, line_user_id, display_name, profile_image_url, created_at, updated_at FROM users WHERE id = $1
+SELECT id, line_user_id, display_name, profile_image_url, created_at, updated_at, deleted_at FROM users WHERE id = $1
 `
 
 // IDでユーザー情報を取得 (画面表示用)
@@ -350,13 +368,16 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.ProfileImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByLineID = `-- name: GetUserByLineID :one
-SELECT id, line_user_id, display_name, profile_image_url, created_at, updated_at FROM users
-WHERE line_user_id = $1 LIMIT 1
+SELECT id, line_user_id, display_name, profile_image_url, created_at, updated_at, deleted_at FROM users
+WHERE line_user_id = $1
+  AND deleted_at IS NULL
+    LIMIT 1
 `
 
 // LINE IDでユーザー取得
@@ -370,6 +391,7 @@ func (q *Queries) GetUserByLineID(ctx context.Context, lineUserID string) (User,
 		&i.ProfileImageUrl,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -649,4 +671,25 @@ func (q *Queries) UpdateTradeDetails(ctx context.Context, arg UpdateTradeDetails
 		&i.Details,
 	)
 	return i, err
+}
+
+const withdrawUser = `-- name: WithdrawUser :exec
+UPDATE users
+SET line_user_id = $2,
+    display_name = $3,
+    deleted_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL
+`
+
+type WithdrawUserParams struct {
+	ID          uuid.UUID `json:"id"`
+	LineUserID  string    `json:"line_user_id"`
+	DisplayName string    `json:"display_name"`
+}
+
+// id指定でユーザー論理削除
+func (q *Queries) WithdrawUser(ctx context.Context, arg WithdrawUserParams) error {
+	_, err := q.db.ExecContext(ctx, withdrawUser, arg.ID, arg.LineUserID, arg.DisplayName)
+	return err
 }
