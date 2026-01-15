@@ -19,12 +19,13 @@ type GroupMember struct {
 }
 
 type JobGroup struct {
-	ID             uuid.UUID `json:"id"`
-	Name           string    `json:"name"`
-	InvitationCode string    `json:"invitation_code"`
-	OwnerID        uuid.UUID `json:"owner_id"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID             uuid.UUID    `json:"id"`
+	Name           string       `json:"name"`
+	InvitationCode string       `json:"invitation_code"`
+	OwnerID        uuid.UUID    `json:"owner_id"`
+	CreatedAt      time.Time    `json:"created_at"`
+	UpdatedAt      time.Time    `json:"updated_at"`
+	DeletedAt      sql.NullTime `json:"deleted_at"`
 }
 
 type ShiftTrade struct {

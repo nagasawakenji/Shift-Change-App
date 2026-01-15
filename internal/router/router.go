@@ -21,6 +21,11 @@ func SetupRoutes(e *echo.Echo, h *handler.Handler) {
 		authed.POST("/groups", h.CreateGroup)
 		authed.POST("/groups/join", h.JoinGroup)
 		authed.POST("/me", h.Me)
+		authed.DELETE("/me", h.WithdrawMe)
+
+		// グループ管理（ownerのみ）
+		authed.PUT("/groups/:group_id", h.UpdateGroupName)
+		authed.DELETE("/groups/:group_id", h.DissolveGroup)
 
 		authed.POST("/groups/:group_id/trades", h.CreateTrade)
 		authed.GET("/groups/:group_id/trades", h.ListTrades)
@@ -28,7 +33,6 @@ func SetupRoutes(e *echo.Echo, h *handler.Handler) {
 		authed.PUT("/groups/:group_id/trades/:trade_id/accept", h.AcceptTrade)
 		authed.PUT("/trades/:trade_id/paid", h.MarkPaid)
 		authed.PUT("/groups/:group_id/trades/:trade_id/details", h.UpdateTradeDetails)
-		authed.DELETE("/me", h.WithdrawMe)
 	}
 
 	// 画面表示 (HTML)

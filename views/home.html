@@ -23,10 +23,10 @@
         <div class="space-y-3">
             {{range .UserGroups}}
             <a href="/groups/{{.ID}}?user_id={{$.CurrentUserID}}" class="block bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:bg-blue-50 transition relative">
-                <div class="flex justify-between items-center">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <div class="font-bold text-lg text-gray-800">{{.Name}}</div>
+                <div class="flex justify-between items-center gap-3">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <div class="font-bold text-lg text-gray-800 truncate">{{.Name}}</div>
 
                             {{if eq .Role "ADMIN"}}
                             <button type="button"
@@ -41,7 +41,43 @@
                         <div class="text-xs text-blue-500 font-bold mt-1">{{.Role}}</div>
                     </div>
 
-                    <i class="fa-solid fa-chevron-right text-gray-300"></i>
+                    <div class="flex items-center gap-2 shrink-0">
+                        {{if eq .Role "ADMIN"}}
+                        <!-- 3点メニュー（管理操作はここに集約） -->
+                        <div class="relative">
+                            <button type="button"
+                                    onclick="toggleGroupMenu(event, '{{.ID}}')"
+                                    class="w-9 h-9 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 active:scale-95 transition flex items-center justify-center"
+                                    aria-label="グループ管理メニュー"
+                                    aria-haspopup="menu"
+                                    aria-expanded="false"
+                                    data-menu-button="{{.ID}}">
+                                <i class="fa-solid fa-ellipsis"></i>
+                            </button>
+
+                            <div id="group-menu-{{.ID}}"
+                                 class="hidden absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-20"
+                                 role="menu">
+                                <button type="button"
+                                        onclick="openRenameGroupModal(event, '{{.ID}}', '{{.Name}}')"
+                                        class="w-full text-left px-4 py-3 text-sm hover:bg-gray-50 flex items-center gap-2"
+                                        role="menuitem">
+                                    <i class="fa-solid fa-pen text-gray-500"></i>
+                                    <span class="font-bold text-gray-700">名前変更</span>
+                                </button>
+                                <button type="button"
+                                        onclick="dissolveGroup(event, '{{.ID}}', '{{.Name}}')"
+                                        class="w-full text-left px-4 py-3 text-sm hover:bg-red-50 flex items-center gap-2"
+                                        role="menuitem">
+                                    <i class="fa-solid fa-trash-can text-red-500"></i>
+                                    <span class="font-bold text-red-600">解散</span>
+                                </button>
+                            </div>
+                        </div>
+                        {{end}}
+
+                        <i class="fa-solid fa-chevron-right text-gray-300"></i>
+                    </div>
                 </div>
             </a>
             {{else}}
@@ -54,23 +90,65 @@
 
     <hr class="border-gray-200">
 
-    <div class="bg-white rounded-xl p-5 shadow-sm space-y-4">
-        <div>
-            <h3 class="font-bold text-gray-700 text-sm mb-2"><i class="fa-solid fa-store text-blue-500 mr-1"></i> 新しくお店を作る</h3>
-            <div class="flex gap-2">
-                <input type="text" id="newGroupName" placeholder="店舗名" class="flex-1 bg-gray-50 border rounded-lg p-2 text-sm">
-                <button onclick="createGroup()" class="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg text-sm shadow">作成</button>
-            </div>
+    <!-- 店舗追加（作成 / 参加 をタブ化） -->
+    <div class="bg-white rounded-xl p-5 shadow-sm">
+        <h3 class="font-bold text-gray-700 text-sm mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-store text-blue-500"></i>
+            <span>店舗を追加</span>
+        </h3>
+
+        <!-- Tabs -->
+        <div class="bg-gray-100 rounded-xl p-1 flex gap-1">
+            <button type="button"
+                    id="tab-create"
+                    onclick="switchGroupTab('create')"
+                    class="flex-1 py-2 text-sm font-bold rounded-lg bg-white shadow-sm">
+                新しく作る
+            </button>
+            <button type="button"
+                    id="tab-join"
+                    onclick="switchGroupTab('join')"
+                    class="flex-1 py-2 text-sm font-bold rounded-lg text-gray-600 hover:text-gray-800">
+                招待で参加
+            </button>
         </div>
 
-        <div class="border-t border-gray-100 my-2"></div>
-
-        <div>
-            <h3 class="font-bold text-gray-700 text-sm mb-2"><i class="fa-solid fa-ticket text-orange-500 mr-1"></i> 招待コードで参加</h3>
+        <!-- Create panel -->
+        <div id="panel-create" class="mt-4 space-y-2">
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider">店舗名</div>
             <div class="flex gap-2">
-                <input type="text" id="inviteCode" placeholder="コード入力" class="flex-1 bg-gray-50 border rounded-lg p-2 text-sm text-center uppercase">
-                <button onclick="joinGroup()" class="bg-orange-500 text-white font-bold px-4 py-2 rounded-lg text-sm shadow">参加</button>
+                <input type="text"
+                       id="newGroupName"
+                       placeholder="例: 渋谷店"
+                       class="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm focus:ring-blue-500 focus:border-blue-500">
+                <button type="button"
+                        onclick="createGroup()"
+                        class="bg-blue-600 text-white font-bold px-4 py-2.5 rounded-lg text-sm shadow hover:bg-blue-700 active:scale-95 transition">
+                    作成
+                </button>
             </div>
+            <p class="text-[11px] text-gray-400 leading-relaxed">
+                ※ 店舗名は50文字以内で入力してください
+            </p>
+        </div>
+
+        <!-- Join panel -->
+        <div id="panel-join" class="mt-4 space-y-2 hidden">
+            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider">招待コード</div>
+            <div class="flex gap-2">
+                <input type="text"
+                       id="inviteCode"
+                       placeholder="例: WRuaZK"
+                       class="flex-1 bg-gray-50 border border-gray-200 rounded-lg p-2.5 text-sm text-center uppercase tracking-wider focus:ring-orange-500 focus:border-orange-500">
+                <button type="button"
+                        onclick="joinGroup()"
+                        class="bg-orange-500 text-white font-bold px-4 py-2.5 rounded-lg text-sm shadow hover:bg-orange-600 active:scale-95 transition">
+                    参加
+                </button>
+            </div>
+            <p class="text-[11px] text-gray-400 leading-relaxed">
+                ※ 招待コードは大文字・小文字を区別します
+            </p>
         </div>
     </div>
 
@@ -87,6 +165,35 @@
         <p class="text-xs text-gray-400 mt-2 leading-relaxed">
             退会すると、あなたが募集中（OPEN）にしている募集はすべて終了になります。
         </p>
+    </div>
+
+    <!-- グループ名変更モーダル（ADMINのみ） -->
+    <div id="rename-group-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl">
+            <h3 class="text-lg font-bold mb-4 flex items-center">
+                <i class="fa-solid fa-pen text-blue-500 mr-2"></i> グループ名を変更
+            </h3>
+
+            <div class="space-y-2">
+                <div class="text-xs text-gray-500 font-bold">現在</div>
+                <div id="rename-current-name" class="text-sm font-bold text-gray-800"></div>
+            </div>
+
+            <div class="mt-4">
+                <label class="block text-xs font-bold text-gray-500 uppercase mb-1">新しい名前</label>
+                <input type="text" id="renameGroupName" placeholder="例: 渋谷店" class="w-full bg-gray-50 border rounded-lg p-2 text-sm">
+                <p class="text-[11px] text-gray-400 mt-2">※ 空欄は保存できません（50文字以内）</p>
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <button type="button" onclick="closeRenameGroupModal()" class="flex-1 py-2.5 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200">
+                    キャンセル
+                </button>
+                <button type="button" onclick="submitRenameGroup()" class="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md">
+                    変更する
+                </button>
+            </div>
+        </div>
     </div>
 
     <!-- Toast -->
@@ -132,9 +239,207 @@
     // ページロードで認証初期化
     window.addEventListener('load', initAuth);
 
+    // ===== UI: タブ（作成 / 参加） =====
+    function switchGroupTab(tab) {
+        const tabCreate = document.getElementById('tab-create');
+        const tabJoin = document.getElementById('tab-join');
+        const panelCreate = document.getElementById('panel-create');
+        const panelJoin = document.getElementById('panel-join');
+
+        const isCreate = tab === 'create';
+
+        // Panels
+        if (panelCreate) panelCreate.classList.toggle('hidden', !isCreate);
+        if (panelJoin) panelJoin.classList.toggle('hidden', isCreate);
+
+        // Tabs styles
+        if (tabCreate) {
+            tabCreate.classList.toggle('bg-white', isCreate);
+            tabCreate.classList.toggle('shadow-sm', isCreate);
+            tabCreate.classList.toggle('text-gray-600', !isCreate);
+        }
+        if (tabJoin) {
+            tabJoin.classList.toggle('bg-white', !isCreate);
+            tabJoin.classList.toggle('shadow-sm', !isCreate);
+            tabJoin.classList.toggle('text-gray-600', isCreate);
+        }
+
+        // Focus
+        setTimeout(() => {
+            const el = document.getElementById(isCreate ? 'newGroupName' : 'inviteCode');
+            el && el.focus();
+        }, 0);
+    }
+
+    // 初期タブ
+    switchGroupTab('create');
+
+    // ===== UI: 3点メニュー（グループ管理） =====
+    let __openGroupMenuId = "";
+
+    function closeOpenGroupMenu() {
+        if (!__openGroupMenuId) return;
+        const open = document.getElementById(`group-menu-${__openGroupMenuId}`);
+        if (open) open.classList.add('hidden');
+        __openGroupMenuId = "";
+    }
+
+    function toggleGroupMenu(e, groupId) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        const menu = document.getElementById(`group-menu-${groupId}`);
+        if (!menu) return;
+
+        // 既に別のメニューが開いていれば閉じる
+        if (__openGroupMenuId && __openGroupMenuId !== groupId) {
+            closeOpenGroupMenu();
+        }
+
+        const willOpen = menu.classList.contains('hidden');
+        menu.classList.toggle('hidden', !willOpen);
+        __openGroupMenuId = willOpen ? groupId : "";
+    }
+
+    // 画面のどこかをタップしたら閉じる
+    document.addEventListener('click', () => {
+        closeOpenGroupMenu();
+    });
+
+    // メニュー内クリックは閉じない（各ボタン側で stopPropagation 済み）
+
+    // ===== グループ名変更 / 解散（ADMIN） =====
+    let __renameTargetGroupId = "";
+
+    function openRenameGroupModal(e, groupId, currentName) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        closeOpenGroupMenu();
+        __renameTargetGroupId = groupId;
+
+        const modal = document.getElementById('rename-group-modal');
+        const currentEl = document.getElementById('rename-current-name');
+        const input = document.getElementById('renameGroupName');
+
+        if (currentEl) currentEl.textContent = currentName || "";
+        if (input) input.value = (currentName || "");
+
+        if (modal) {
+            modal.classList.remove('hidden');
+            // フォーカス
+            setTimeout(() => input && input.focus(), 0);
+        }
+    }
+
+    function closeRenameGroupModal() {
+        const modal = document.getElementById('rename-group-modal');
+        if (modal) modal.classList.add('hidden');
+        __renameTargetGroupId = "";
+    }
+
+    async function submitRenameGroup() {
+        const input = document.getElementById('renameGroupName');
+        const name = (input?.value || '').trim();
+
+        // フロントでも空文字を防ぐ
+        if (!name) {
+            showToast('グループ名を入力してください');
+            input && input.focus();
+            return;
+        }
+        if (name.length > 50) {
+            showToast('グループ名は50文字以内にしてください');
+            input && input.focus();
+            return;
+        }
+        if (!__renameTargetGroupId) {
+            alert('対象グループが不明です');
+            return;
+        }
+
+        try {
+            requireIDToken();
+            const res = await fetch(`/api/groups/${__renameTargetGroupId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                },
+                body: JSON.stringify({ name })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert('変更に失敗しました: ' + (err.error || ''));
+                return;
+            }
+
+            showToast('グループ名を変更しました');
+            closeRenameGroupModal();
+            // 反映
+            setTimeout(() => location.reload(), 300);
+        } catch (e) {
+            console.error(e);
+            alert('通信エラーが発生しました');
+        }
+    }
+
+    async function dissolveGroup(e, groupId, groupName) {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        closeOpenGroupMenu();
+
+        const msg = `本当に「${groupName || ''}」を解散しますか？\n\n※募集中（OPEN）の募集は全て終了になります`;
+        if (!confirm(msg)) return;
+
+        try {
+            requireIDToken();
+
+            const res = await fetch(`/api/groups/${groupId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${ID_TOKEN}`
+                }
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                alert('解散に失敗しました: ' + (err.error || ''));
+                return;
+            }
+
+            alert('グループを解散しました');
+            location.reload();
+        } catch (e) {
+            console.error(e);
+            alert('通信エラーが発生しました');
+        }
+    }
+
     async function createGroup() {
-        const name = document.getElementById('newGroupName').value;
-        if(!name) return;
+        const el = document.getElementById('newGroupName');
+        const name = (el?.value || '').trim();
+
+        // フロントでも空文字を防ぐ
+        if (!name) {
+            showToast('店舗名を入力してください');
+            if (el) el.focus();
+            return;
+        }
+
+        // 最低限の長さ制限（バックエンドでも弾く想定だがUXのため）
+        if (name.length > 50) {
+            showToast('店舗名は50文字以内にしてください');
+            if (el) el.focus();
+            return;
+        }
+
         requireIDToken();
         try {
             const res = await fetch('/api/groups', {
@@ -145,13 +450,33 @@
                 },
                 body: JSON.stringify({ group_name: name })
             });
-            if (res.ok) location.reload();
-        } catch(e) { console.error(e); }
+
+            if (res.ok) {
+                location.reload();
+                return;
+            }
+
+            const err = await res.json().catch(() => ({}));
+            alert('作成に失敗しました: ' + (err.error || ''));
+        } catch (e) {
+            console.error(e);
+            alert('通信エラーが発生しました');
+        }
     }
 
     async function joinGroup() {
-        const code = document.getElementById('inviteCode').value;
-        if(!code) return;
+        const el = document.getElementById('inviteCode');
+        const code = (el?.value || '').trim();
+        if (!code) {
+            showToast('招待コードを入力してください');
+            el && el.focus();
+            return;
+        }
+        if (code.length > 30) {
+            showToast('招待コードが長すぎます');
+            el && el.focus();
+            return;
+        }
         requireIDToken();
         try {
             const res = await fetch('/api/groups/join', {

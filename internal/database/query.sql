@@ -45,12 +45,17 @@ VALUES ($1, $2, $3)
 -- グループ名取得
 -- name: GetGroupName :one
 SELECT name FROM job_groups
-WHERE id = $1;
+WHERE id = $1
+  AND deleted_at IS NULL;
 
 -- グループ所属チェック
 -- name: GetGroupMember :one
-SELECT * FROM group_members
-WHERE group_id = $1 AND user_id = $2;
+SELECT gm.*
+FROM group_members gm
+         JOIN job_groups g ON g.id = gm.group_id
+WHERE gm.group_id = $1
+  AND gm.user_id = $2
+  AND g.deleted_at IS NULL;
 
 -- ユーザーが所属しているグループ一覧を取得
 -- name: ListUserGroups :many
@@ -58,12 +63,15 @@ SELECT g.id, g.name, g.invitation_code, gm.role
 FROM job_groups g
          JOIN group_members gm ON g.id = gm.group_id
 WHERE gm.user_id = $1
+  AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC;
 
 -- 招待コードでグループ検索
 -- name: GetJobGroupByCode :one
 SELECT * FROM job_groups
-WHERE invitation_code = $1 LIMIT 1;
+WHERE invitation_code = $1
+  AND deleted_at IS NULL
+LIMIT 1;
 
 -- シフト交代リクエスト作成
 -- name: CreateShiftTrade :one
@@ -115,7 +123,9 @@ SELECT * FROM users WHERE id = $1;
 
 -- IDでグループ情報を取得 (画面表示用)
 -- name: GetJobGroupByID :one
-SELECT * FROM job_groups WHERE id = $1;
+SELECT * FROM job_groups
+WHERE id = $1
+  AND deleted_at IS NULL;
 
 -- グループメンバー全員のLINE IDを取得 (通知用)
 -- name: GetGroupMemberLineIDs :many
@@ -159,3 +169,30 @@ SET details = $3,
     updated_at = NOW()
 WHERE id = $1 AND requester_id = $2
     RETURNING *;
+
+-- グループ名を変更（ownerのみ）
+-- name: UpdateJobGroupName :one
+UPDATE job_groups
+SET name = $2,
+    updated_at = NOW()
+WHERE id = $1
+  AND owner_id = $3
+  AND deleted_at IS NULL
+RETURNING *;
+
+-- グループを解散（論理削除）（ownerのみ）
+-- name: SoftDeleteJobGroup :execrows
+UPDATE job_groups
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1
+  AND owner_id = $2
+  AND deleted_at IS NULL;
+
+-- 解散したグループの「募集中(OPEN)」募集を全てCLOSEDにする
+-- name: CloseOpenShiftTradesByGroup :execrows
+UPDATE shift_trades
+SET status = 'CLOSED',
+    updated_at = NOW()
+WHERE group_id = $1
+  AND status = 'OPEN';
