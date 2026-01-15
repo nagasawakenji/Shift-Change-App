@@ -84,6 +84,7 @@ func main() {
 	if port == "" {
 		port = "8080" // ローカル用フォールバック
 	}
+	log.Println("[BOOT] about to start server on PORT =", port)
 
 	e.Logger.Fatal(e.Start(":" + port))
 }
