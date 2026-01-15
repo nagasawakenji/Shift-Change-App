@@ -79,12 +79,11 @@ func main() {
 	log.Printf("[BOOT] APP_ENV=%q DEV_AUTH_TOKEN=%q", os.Getenv("APP_ENV"), os.Getenv("DEV_AUTH_TOKEN"))
 	e.Logger.Infof("APP_ENV=%q DEV_AUTH_TOKEN=%q", os.Getenv("APP_ENV"), os.Getenv("DEV_AUTH_TOKEN"))
 
-	// Render は PORT 環境変数で待ち受けポートを渡してくる
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080" // ローカル用フォールバック
+	httpPort := os.Getenv("PORT")
+	if httpPort == "" {
+		httpPort = "8080" // ローカル用フォールバック
 	}
-	log.Println("[BOOT] about to start server on PORT =", port)
+	log.Println("[BOOT] about to start server on PORT =", httpPort)
 
-	e.Logger.Fatal(e.Start(":" + port))
+	e.Logger.Fatal(e.Start(":" + httpPort))
 }

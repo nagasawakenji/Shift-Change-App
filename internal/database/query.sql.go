@@ -58,6 +58,23 @@ func (q *Queries) AcceptShiftTrade(ctx context.Context, arg AcceptShiftTradePara
 	return i, err
 }
 
+const closeOpenShiftTradesByGroup = `-- name: CloseOpenShiftTradesByGroup :execrows
+UPDATE shift_trades
+SET status = 'CLOSED',
+    updated_at = NOW()
+WHERE group_id = $1
+  AND status = 'OPEN'
+`
+
+// 解散したグループの「募集中(OPEN)」募集を全てCLOSEDにする
+func (q *Queries) CloseOpenShiftTradesByGroup(ctx context.Context, groupID uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, closeOpenShiftTradesByGroup, groupID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const closeOpenShiftTradesByRequester = `-- name: CloseOpenShiftTradesByRequester :execrows
 UPDATE shift_trades
 SET status = 'CLOSED',
@@ -103,7 +120,7 @@ func (q *Queries) CreateGroupMember(ctx context.Context, arg CreateGroupMemberPa
 const createJobGroup = `-- name: CreateJobGroup :one
 INSERT INTO job_groups (name, invitation_code, owner_id)
 VALUES ($1, $2, $3)
-    RETURNING id, name, invitation_code, owner_id, created_at, updated_at
+    RETURNING id, name, invitation_code, owner_id, created_at, updated_at, deleted_at
 `
 
 type CreateJobGroupParams struct {
@@ -123,6 +140,7 @@ func (q *Queries) CreateJobGroup(ctx context.Context, arg CreateJobGroupParams) 
 		&i.OwnerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -221,8 +239,12 @@ func (q *Queries) DeleteShiftTrade(ctx context.Context, arg DeleteShiftTradePara
 }
 
 const getGroupMember = `-- name: GetGroupMember :one
-SELECT user_id, group_id, role, joined_at FROM group_members
-WHERE group_id = $1 AND user_id = $2
+SELECT gm.user_id, gm.group_id, gm.role, gm.joined_at
+FROM group_members gm
+         JOIN job_groups g ON g.id = gm.group_id
+WHERE gm.group_id = $1
+  AND gm.user_id = $2
+  AND g.deleted_at IS NULL
 `
 
 type GetGroupMemberParams struct {
@@ -279,6 +301,7 @@ func (q *Queries) GetGroupMemberLineIDs(ctx context.Context, groupID uuid.UUID) 
 const getGroupName = `-- name: GetGroupName :one
 SELECT name FROM job_groups
 WHERE id = $1
+  AND deleted_at IS NULL
 `
 
 // グループ名取得
@@ -290,8 +313,10 @@ func (q *Queries) GetGroupName(ctx context.Context, id uuid.UUID) (string, error
 }
 
 const getJobGroupByCode = `-- name: GetJobGroupByCode :one
-SELECT id, name, invitation_code, owner_id, created_at, updated_at FROM job_groups
-WHERE invitation_code = $1 LIMIT 1
+SELECT id, name, invitation_code, owner_id, created_at, updated_at, deleted_at FROM job_groups
+WHERE invitation_code = $1
+  AND deleted_at IS NULL
+LIMIT 1
 `
 
 // 招待コードでグループ検索
@@ -305,12 +330,15 @@ func (q *Queries) GetJobGroupByCode(ctx context.Context, invitationCode string) 
 		&i.OwnerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getJobGroupByID = `-- name: GetJobGroupByID :one
-SELECT id, name, invitation_code, owner_id, created_at, updated_at FROM job_groups WHERE id = $1
+SELECT id, name, invitation_code, owner_id, created_at, updated_at, deleted_at FROM job_groups
+WHERE id = $1
+  AND deleted_at IS NULL
 `
 
 // IDでグループ情報を取得 (画面表示用)
@@ -324,6 +352,7 @@ func (q *Queries) GetJobGroupByID(ctx context.Context, id uuid.UUID) (JobGroup, 
 		&i.OwnerID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
@@ -523,6 +552,7 @@ SELECT g.id, g.name, g.invitation_code, gm.role
 FROM job_groups g
          JOIN group_members gm ON g.id = gm.group_id
 WHERE gm.user_id = $1
+  AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC
 `
 
@@ -634,6 +664,61 @@ func (q *Queries) MarkTradeAsPaid(ctx context.Context, arg MarkTradeAsPaidParams
 		&i.UpdatedAt,
 		&i.IsPaid,
 		&i.Details,
+	)
+	return i, err
+}
+
+const softDeleteJobGroup = `-- name: SoftDeleteJobGroup :execrows
+UPDATE job_groups
+SET deleted_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1
+  AND owner_id = $2
+  AND deleted_at IS NULL
+`
+
+type SoftDeleteJobGroupParams struct {
+	ID      uuid.UUID `json:"id"`
+	OwnerID uuid.UUID `json:"owner_id"`
+}
+
+// グループを解散（論理削除）（ownerのみ）
+func (q *Queries) SoftDeleteJobGroup(ctx context.Context, arg SoftDeleteJobGroupParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, softDeleteJobGroup, arg.ID, arg.OwnerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateJobGroupName = `-- name: UpdateJobGroupName :one
+UPDATE job_groups
+SET name = $2,
+    updated_at = NOW()
+WHERE id = $1
+  AND owner_id = $3
+  AND deleted_at IS NULL
+RETURNING id, name, invitation_code, owner_id, created_at, updated_at, deleted_at
+`
+
+type UpdateJobGroupNameParams struct {
+	ID      uuid.UUID `json:"id"`
+	Name    string    `json:"name"`
+	OwnerID uuid.UUID `json:"owner_id"`
+}
+
+// グループ名を変更（ownerのみ）
+func (q *Queries) UpdateJobGroupName(ctx context.Context, arg UpdateJobGroupNameParams) (JobGroup, error) {
+	row := q.db.QueryRowContext(ctx, updateJobGroupName, arg.ID, arg.Name, arg.OwnerID)
+	var i JobGroup
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.InvitationCode,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
